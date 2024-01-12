@@ -139,7 +139,6 @@ def load_data(folder_path, return_cols=False):
             tmp = flist[1].copy()
             target = tmp.pop(c - 11)
             # fname.append(target.split('/')[2][:-4])
-
             fname.append(target.split('\\')[1][:-4])
 
         if not return_cols:

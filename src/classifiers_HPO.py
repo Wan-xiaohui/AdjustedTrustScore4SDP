@@ -8,6 +8,8 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import torch
+from pytorch_tabnet.tab_model import TabNetClassifier
 from sklearn.svm import SVC
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import StratifiedKFold
@@ -23,6 +25,7 @@ def calc_performance(label_true, label_pred):
     return MCC
 
 
+# single model
 def KNN_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
 
     def KNN_hyperopt_train_val(params):
@@ -72,6 +75,57 @@ def KNN_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
 
     params = space_eval(param_space, best)
     model_tune = neighbors.KNeighborsClassifier(**params)
+
+    train_data, train_label = SMOTE(sampling_strategy='auto', k_neighbors=3).fit_sample(train_data, train_label)
+
+    model_tune.fit(train_data, train_label)
+
+    return model_tune
+
+
+def NB_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
+    def NB_hyperopt_train_val(params):
+        clf = GaussianNB(**params)
+
+        k_folds = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=0)
+
+        metrics_ = []
+        for train_index, val_index in k_folds.split(train_data, train_label):
+            train_X, val_X = train_data[train_index], train_data[val_index]
+            train_y, val_y = train_label[train_index], train_label[val_index]
+
+            train_X, train_y = SMOTE(sampling_strategy='auto', k_neighbors=3).fit_sample(train_X, train_y)
+
+            clf.fit(train_X, train_y)
+
+            pred_y = clf.predict(val_X)
+
+            mcc = calc_performance(val_y, pred_y)
+
+            if metrics == 'MCC':
+                metrics_.append(mcc)
+
+            else:
+                print('PLEASE SELECT THE METRICS !!!')
+                break
+
+        return {
+            'loss': 1 - np.mean(metrics_),
+            'status': STATUS_OK
+        }
+
+    param_space = {
+        'var_smoothing': hp.loguniform('var_smoothing', -10, -1)
+    }
+
+    if opt_algo == 'RAND':
+        best = fmin(NB_hyperopt_train_val, param_space, algo=rand.suggest, max_evals=MAX_EVALS)
+
+    elif opt_algo == 'TPE':
+        best = fmin(NB_hyperopt_train_val, param_space, algo=tpe.suggest, max_evals=MAX_EVALS)
+
+    params = space_eval(param_space, best)
+    model_tune = GaussianNB(**params)
 
     train_data, train_label = SMOTE(sampling_strategy='auto', k_neighbors=3).fit_sample(train_data, train_label)
 
@@ -442,9 +496,26 @@ def GB_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
     return model_tune
 
 
-def NB_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
-    def NB_hyperopt_train_val(params):
-        clf = GaussianNB(**params)
+def TabNet_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
+    def TabNet_hyperopt_train_val(params):
+        tabnet_params = dict(n_d=int(params["n_d"]),
+                             n_a=int(params["n_a"]),
+                             n_steps=int(params["n_steps"]),
+                             gamma=params["gamma"],
+                             lambda_sparse=params["lambda_sparse"],
+                             optimizer_fn=torch.optim.Adam,
+                             optimizer_params=dict(lr=2e-2, weight_decay=1e-5),
+                             mask_type=params["mask_type"],
+                             n_shared=int(params["n_shared"]),
+                             scheduler_params=dict(mode="min",
+                                                   patience=int(params["patienceScheduler"]),
+                                                   min_lr=1e-5,
+                                                   factor=0.5
+                                                   ),
+                             scheduler_fn=torch.optim.lr_scheduler.ReduceLROnPlateau,
+                             verbose=0
+                             )
+        clf = TabNetClassifier(**tabnet_params)
 
         k_folds = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=0)
 
@@ -456,9 +527,7 @@ def NB_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
             train_X, train_y = SMOTE(sampling_strategy='auto', k_neighbors=3).fit_sample(train_X, train_y)
 
             clf.fit(train_X, train_y)
-
             pred_y = clf.predict(val_X)
-
             mcc = calc_performance(val_y, pred_y)
 
             if metrics == 'MCC':
@@ -473,21 +542,48 @@ def NB_Opt(train_data, train_label, metrics='MCC', opt_algo='TPE'):
             'status': STATUS_OK
         }
 
-    param_space = {
-        'var_smoothing': hp.loguniform('var_smoothing', -10, -1)
-    }
+    param_space = {'mask_type': hp.choice('mask_type', ["entmax", "sparsemax"]),
+                   "n_d": hp.quniform("n_d", 8, 64, 8),
+                   "n_a": hp.quniform("n_a", 8, 64, 8),
+                   "n_steps": hp.quniform("n_steps", 1, 3, 1),
+                   "gamma": hp.uniform("gamma", 1., 1.4),
+                   "n_shared": hp.quniform("n_shared", 1, 3, 1),
+                   "lambda_sparse": hp.loguniform("lambda_sparse", -12, -3),
+                   "patienceScheduler": hp.quniform("patienceScheduler", 3, 10, 1)
+                   }
 
     if opt_algo == 'RAND':
-        best = fmin(NB_hyperopt_train_val, param_space, algo=rand.suggest, max_evals=MAX_EVALS)
+        best = fmin(TabNet_hyperopt_train_val, param_space, algo=rand.suggest, max_evals=MAX_EVALS)
 
     elif opt_algo == 'TPE':
-        best = fmin(NB_hyperopt_train_val, param_space, algo=tpe.suggest, max_evals=MAX_EVALS)
+        best = fmin(TabNet_hyperopt_train_val, param_space, algo=tpe.suggest, max_evals=MAX_EVALS)
 
     params = space_eval(param_space, best)
-    model_tune = GaussianNB(**params)
-
+    tabnet_params = dict(n_d=int(params["n_d"]),
+                         n_a=int(params["n_a"]),
+                         n_steps=int(params["n_steps"]),
+                         gamma=params["gamma"],
+                         lambda_sparse=params["lambda_sparse"],
+                         optimizer_fn=torch.optim.Adam,
+                         optimizer_params=dict(lr=2e-2, weight_decay=1e-5),
+                         mask_type=params["mask_type"],
+                         n_shared=int(params["n_shared"]),
+                         scheduler_params=dict(mode="min",
+                                               patience=int(params["patienceScheduler"]),
+                                               min_lr=1e-5,
+                                               factor=0.5
+                                               ),
+                         scheduler_fn=torch.optim.lr_scheduler.ReduceLROnPlateau,
+                         verbose=0
+                         )
+    model_tune = TabNetClassifier(**tabnet_params)
     train_data, train_label = SMOTE(sampling_strategy='auto', k_neighbors=3).fit_sample(train_data, train_label)
 
     model_tune.fit(train_data, train_label)
 
     return model_tune
+
+
+
+
+

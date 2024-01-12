@@ -16,14 +16,23 @@ import numpy as np
 from sklearn.neighbors import KDTree, KNeighborsClassifier
 
 
+class expFunc(object):
+    def __init__(self, alpha=1.0, beta=0.5):
+        self.alpha = alpha
+        self.beta = beta
+
+    def evaluate(self, x):
+        return np.exp(self.alpha * (x - self.beta))
+
+
 class DPTS:
     """
-    Defect Prediction Trust Score: a measure of classifier uncertainty based on nearest neighbors.
+    Defect Prediction Trust Score: a measure of classifiers uncertainty based on nearest neighbors.
     """
 
     def __init__(self, k=10, alpha=0.0, filtering="none", min_dist=1e-12):
         """
-        confidence_score: the confidence_score of a classifier
+        confidence_score: the confidence_score of a classifiers
         filtering: method of filtering. option are "none", "density",
         "uncertainty"
         min_dist: some small number to mitigate possible division by 0.
@@ -126,14 +135,15 @@ class DPTS:
         )
 
         trust_score = d_to_closest_not_pred / (d_to_pred + self.min_dist)
-        dpts = trust_score * np.exp(confidence - 0.5)
+        custom_sigmoid = expFunc(alpha=1, beta=0.5)
+        dpts = trust_score * custom_sigmoid.evaluate(confidence)
 
         return dpts
 
 
 class TrustScore:
     """
-    Trust Score: a measure of classifier uncertainty based on nearest neighbors.
+    Trust Score: a measure of classifiers uncertainty based on nearest neighbors.
     """
 
     def __init__(self, k=10, alpha=0.0, filtering="none", min_dist=1e-12):
@@ -245,7 +255,7 @@ class TrustScore:
 
 class KNNConfidence:
     """
-    Baseline which uses disagreement to kNN classifier.
+    Baseline which uses disagreement to kNN classifiers.
     """
 
     def __init__(self, k=10):
