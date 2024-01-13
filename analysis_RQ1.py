@@ -41,7 +41,7 @@ def load_jit_data(folder_path):
     return data_list, label_list, fname_list
 
 
-if __name__ == '__main__':
+def save_result(is_correct=True):
     folder_path = 'datasets/'
     _, _, fname = load_data(folder_path)
 
@@ -53,19 +53,138 @@ if __name__ == '__main__':
     # 采用的分类器方法
     clfs = ['LR', 'SVM', 'NB', 'DT', 'RF', 'GB', 'MLP', 'TabNet']
 
-    for clf_index in range(8):
-        clf = clfs[clf_index]
-        final_results = pd.DataFrame()
+    if is_correct:
+        for clf_index in range(8):
+            clf = clfs[clf_index]
+            final_results = pd.DataFrame()
 
-        for n in range(len(fname)):
-            print("*" * 20)
-            print('File: ' + fname[n] + '...')
-            print("*" * 20)
+            for n in range(len(fname)):
+                print("*" * 20)
+                print('File: ' + fname[n] + '...')
+                print("*" * 20)
 
-            result = pd.read_csv('dump/csvs/RQ1/Correct/'+fname[n]+".csv")
-            result.insert(0, 'dataset', os.path.splitext(fname[n])[0])
-            final_results = pd.concat([final_results, result.iloc[clf_index, -3:]], axis=1)
+                result = pd.read_csv('dump/csvs/RQ1/Correct/' + fname[n] + ".csv")
+                result.insert(0, 'dataset', os.path.splitext(fname[n])[0])
+                final_results = pd.concat([final_results, result.iloc[clf_index, -3:]], axis=1)
 
-        final_results = final_results.T
-        final_results.insert(0, 'dataset', [fname[i] for i in range(len(fname))])
-        final_results.to_csv('dump/csvs/RQ1/results_correct_{}.csv'.format(clf), index=False)
+            final_results = final_results.T
+            final_results.insert(0, 'dataset', [fname[i] for i in range(len(fname))])
+            final_results.to_csv('dump/csvs/RQ1/results_correct_{}.csv'.format(clf), index=False)
+
+    else:
+        for clf_index in range(8):
+            clf = clfs[clf_index]
+            final_results = pd.DataFrame()
+
+            for n in range(len(fname)):
+                print("*" * 20)
+                print('File: ' + fname[n] + '...')
+                print("*" * 20)
+
+                result = pd.read_csv('dump/csvs/RQ1/Incorrect/' + fname[n] + ".csv")
+                result.insert(0, 'dataset', os.path.splitext(fname[n])[0])
+                final_results = pd.concat([final_results, result.iloc[clf_index, -3:]], axis=1)
+
+            final_results = final_results.T
+            final_results.insert(0, 'dataset', [fname[i] for i in range(len(fname))])
+            final_results.to_csv('dump/csvs/RQ1/results_incorrect_{}.csv'.format(clf), index=False)
+
+
+def clf_analysis(is_correct=True):
+    folder_path = 'datasets/'
+    _, _, fname = load_data(folder_path)
+
+    jit_folder_path = 'datasets/NEW-JIT/'
+    _, _, jit_fname = load_jit_data(jit_folder_path)
+
+    fname.extend(jit_fname)
+
+    # 采用的分类器方法
+    clfs = ['LR', 'SVM', 'NB', 'DT', 'RF', 'GB', 'MLP', 'TabNet']
+
+    if is_correct:
+        for clf_index in range(8):
+            clf = clfs[clf_index]
+            final_results = pd.DataFrame()
+
+            for n in range(len(fname)):
+                print("*" * 20)
+                print('File: ' + fname[n] + '...')
+                print("*" * 20)
+
+                result = pd.read_csv('dump/csvs/RQ1/Correct/' + fname[n] + ".csv")
+                result.insert(0, 'dataset', os.path.splitext(fname[n])[0])
+                final_results = pd.concat([final_results, result.iloc[clf_index, -3:]], axis=1)
+
+            final_results = final_results.T
+            final_results.insert(0, 'dataset', [fname[i] for i in range(len(fname))])
+            final_results.to_csv('dump/csvs/RQ1/results_correct_{}.csv'.format(clf), index=False)
+
+    else:
+        for clf_index in range(8):
+            clf = clfs[clf_index]
+            final_results = pd.DataFrame()
+
+            for n in range(len(fname)):
+                print("*" * 20)
+                print('File: ' + fname[n] + '...')
+                print("*" * 20)
+
+                result = pd.read_csv('dump/csvs/RQ1/Incorrect/' + fname[n] + ".csv")
+                result.insert(0, 'dataset', os.path.splitext(fname[n])[0])
+                final_results = pd.concat([final_results, result.iloc[clf_index, -3:]], axis=1)
+
+            final_results = final_results.T
+            final_results.insert(0, 'dataset', [fname[i] for i in range(len(fname))])
+            final_results.to_csv('dump/csvs/RQ1/results_incorrect_{}.csv'.format(clf), index=False)
+
+
+def total_analysis(is_correct=True):
+    total_results = pd.DataFrame()
+    clfs = ['LR', 'SVM', 'NB', 'DT', 'RF', 'GB', 'MLP', 'TabNet']
+
+    if is_correct:
+        for clf_index in range(8):
+            clf = clfs[clf_index]
+
+            # Read the CSV file for the current classifier
+            current_classifier_data = pd.read_csv('dump/csvs/RQ1/results_correct_{}.csv'.format(clf))
+
+            # If it's the first classifier (LR), keep the dataset column
+            if clf_index == 0:
+                total_results = current_classifier_data
+
+            else:
+                # For subsequent classifiers, drop the dataset column and append the remaining three columns
+                total_results = pd.concat([total_results, current_classifier_data.iloc[:, 1:]], axis=1)
+
+        # Save the total_results DataFrame to a CSV file
+        total_results.to_csv('dump/csvs/RQ1/total_results_correct.csv', index=False)
+
+    else:
+        for clf_index in range(8):
+            clf = clfs[clf_index]
+
+            # Read the CSV file for the current classifier
+            current_classifier_data = pd.read_csv('dump/csvs/RQ1/results_incorrect_{}.csv'.format(clf))
+
+            # If it's the first classifier (LR), keep the dataset column
+            if clf_index == 0:
+                total_results = current_classifier_data
+
+            else:
+                # For subsequent classifiers, drop the dataset column and append the remaining three columns
+                total_results = pd.concat([total_results, current_classifier_data.iloc[:, 1:]], axis=1)
+
+            # Save the total_results DataFrame to a CSV file
+        total_results.to_csv('dump/csvs/RQ1/total_results_incorrect.csv', index=False)
+
+
+if __name__ == '__main__':
+
+    save_result(is_correct=True)
+    clf_analysis(is_correct=True)
+    total_analysis(is_correct=True)
+
+    clf_analysis(is_correct=False)
+    total_analysis(is_correct=False)

@@ -13,6 +13,37 @@ RAND_SEED = 222
 np.random.seed(RAND_SEED)
 
 
+def load_jit_data(folder_path):
+    # Initialize lists to store features and labels
+    data_list = []
+    label_list = []
+    fname_list = []
+
+    # Iterate over each CSV file in the directory
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".csv"):
+            # Construct the full path to the CSV file
+            file_path = os.path.join(folder_path, filename)
+
+            # Read the CSV file using pandas
+            df = pd.read_csv(file_path, index_col=None, header=0,  sep='[:,;]', engine='python')
+            # pd.read_csv(file_path)
+            df.dropna(inplace=True)
+
+            # Extract features (excluding first two columns and last column)
+            features = df.values[:, :-1]
+
+            # Extract labels (last column)
+            labels = df.values[:, -1].astype('int')
+
+            # Append features and labels to the lists
+            data_list.append(features)
+            label_list.append(labels)
+            fname_list.append(filename[:-4])
+
+    return data_list, label_list, fname_list
+
+
 def main_experiment(data, label, n_splits, n_repeats, clfs, metric):
 
     results = {}
@@ -81,12 +112,19 @@ if __name__ == '__main__':
     data_list, label_list, fname = load_data(folder_path)
     files = os.listdir(folder_path)
 
+    jit_folder_path = 'datasets/NEW-JIT/'
+    jit_data_list, jit_label_list, jit_fname = load_jit_data(jit_folder_path)
+
+    data_list.extend(jit_data_list)
+    label_list.extend(jit_label_list)
+    fname.extend(jit_fname)
+
     # 5*5交叉验证
     n_splits = 5
     n_repeats = 5
 
     # 采用的分类器方法
-    clfs = ['KNN', 'LR', 'SVM', 'NB', 'DT', 'RF', 'GB', 'MLP']
+    clfs = ['KNN', 'LR', 'SVM', 'NB', 'DT', 'RF', 'GB', 'MLP', 'TabNet']
 
     # 最终的结果包括各个数据集下各个分类器的各种分类性能指标值
     metric = "MCC"
